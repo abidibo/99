@@ -26,8 +26,8 @@ describe("Range", function()
   end)
 
   it("replace text", function()
-    local start_point = Point:new(2, 3)
-    local end_point = Point:new(3, 11)
+    local start_point = Point:from_1_based(2, 3)
+    local end_point = Point:from_1_based(3, 11)
     local range = Range:new(buffer, start_point, end_point)
     local original_text = range:to_text()
     eq("local x = 1\n  return x", original_text)
@@ -47,8 +47,8 @@ describe("Range", function()
   end)
 
   it("replace text single line into multi-line", function()
-    local start_point = Point:new(2, 3)
-    local end_point = Point:new(3, 11)
+    local start_point = Point:from_1_based(2, 3)
+    local end_point = Point:from_1_based(3, 11)
     local range = Range:new(buffer, start_point, end_point)
     local original_text = range:to_text()
     eq("local x = 1\n  return x", original_text)
@@ -109,23 +109,17 @@ describe("Range", function()
   it(
     "should handle from_visual_selection when visual marks point past buffer end",
     function()
-      -- This test simulates the bug where '> mark points to a row beyond the buffer
-      -- which causes nvim_buf_get_lines to return empty table and end_line to be nil
       local small_buffer = test_utils.create_file({
         "line one",
         "line two",
       }, "lua", 1, 0)
 
-      -- Manually set the visual marks to point beyond the buffer
-      -- This simulates the state that causes the crash
+      local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
       vim.fn.setpos("'<", { small_buffer, 1, 1, 0 })
       vim.fn.setpos("'>", { small_buffer, 100, 1, 0 })
+      local range = Range.from_visual_selection()
 
-      -- This should not crash with "attempt to get length of local 'end_line' (a nil value)"
-      local ok, err = pcall(Range.from_visual_selection)
-      -- Currently this fails - the test demonstrates the bug
-      -- After fix, this should either return a valid range or a meaningful error
-      assert.is_true(ok, "from_visual_selection crashed: " .. tostring(err))
+      eq(Range:new(small_buffer, Point:from_1_based(1, 1), Point:from_1_based(2, 8)), range)
     end
   )
 

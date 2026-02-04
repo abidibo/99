@@ -10,7 +10,7 @@ describe("request_status", function()
   it("setting lines and status line", function()
     local buffer =
       test_utils.create_file({ "", "function foo() end" }, "lua", 1, 1)
-    local point = Point:new(1, 1)
+    local point = Point:from_1_based(1, 1)
     local mark = Mark.mark_point(buffer, point)
     local status = RequestStatus.new(2000000, 3, "TITLE", mark)
     eq({ "⠙ TITLE" }, status:get())

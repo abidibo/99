@@ -1,3 +1,6 @@
+--- TODO: rewrite : functions to . functions where they dont reference
+--- self.
+---
 local project_row = 100000000
 
 --- @param point_or_row _99.Point | number
@@ -45,7 +48,7 @@ end
 --- @param row number
 --- @param col number
 --- @return _99.Point
-function Point:new(row, col)
+function Point:from_1_based(row, col)
   assert(type(row) == "number", "expected row to be a number")
   assert(type(col) == "number", "expected col to be a number")
   return setmetatable({
@@ -53,6 +56,20 @@ function Point:new(row, col)
     col = col,
   }, self)
 end
+
+--- 0 based point
+--- @param row number
+--- @param col number
+--- @return _99.Point
+function Point.from_0_based(row, col)
+  assert(type(row) == "number", "expected row to be a number")
+  assert(type(col) == "number", "expected col to be a number")
+  return setmetatable({
+    row = row + 1,
+    col = col + 1,
+  }, Point)
+end
+
 
 function Point:from_cursor()
   local point = setmetatable({
@@ -158,13 +175,13 @@ end
 --- @param point _99.Point
 --- @return _99.Point
 function Point:add(point)
-  return Point:new(self.row + point.row, self.col + point.col)
+  return Point:from_1_based(self.row + point.row, self.col + point.col)
 end
 
 --- @param point _99.Point
 --- @return _99.Point
 function Point:sub(point)
-  return Point:new(self.row - point.row, self.col - point.col)
+  return Point:from_1_based(self.row - point.row, self.col - point.col)
 end
 
 --- @param mark _99.Mark
@@ -202,17 +219,35 @@ function Range.from_visual_selection()
   local buffer = vim.api.nvim_get_current_buf()
   local start_pos = vim.fn.getpos("'<")
   local end_pos = vim.fn.getpos("'>")
-  local start = Point:new(start_pos[2], start_pos[3])
-  local end_ = Point:new(end_pos[2], end_pos[3])
+  local start = Point:from_1_based(start_pos[2], start_pos[3])
+  local end_ = Point:from_1_based(end_pos[2], end_pos[3])
 
   --- visual line mode will select the end point for each row to be int max
   --- which will cause marks to fail. so we have to correct it to the literal
   --- row length
-  local end_r, _ = end_:to_vim()
-  local end_line =
-    vim.api.nvim_buf_get_lines(buffer, end_r, end_r + 1, false)[1]
-  local actual_end = Point:new(end_pos[2], math.min(end_pos[3], #end_line + 1))
+  local end_row, _ = end_:to_vim()
+  local end_line = vim.api.nvim_buf_get_lines(buffer, end_row, end_row + 1, false)
+  local end_col = 0
 
+  --- another bug where mark >' is beyond the editor.
+  --- therefore will just grab from start to end and use the last captured row
+  --- as the means to discover the proper end col and end row
+  if #end_line == 0 then
+    local start_r, _ = start:to_vim()
+    local selected_lines =
+      vim.api.nvim_buf_get_lines(buffer, start_r, end_row, false)
+    end_row = start_r + #selected_lines
+    end_col = #selected_lines[#selected_lines]
+    --- here is confusing part, we are now in 1 based values
+    --- in the geo_spec test, this would result in end_row = 2, end_col = 8
+    --- so, there is this -1 because we are going to go from 1 based to 0 based
+    end_row = end_row - 1
+    end_col = end_col - 1
+  else
+    end_col = #end_line[1] + 1
+  end
+
+  local actual_end = Point.from_0_based(end_row, end_col)
   return Range:new(buffer, start, actual_end)
 end
 
