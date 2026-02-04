@@ -123,7 +123,7 @@ describe("Range", function()
         Range:new(
           small_buffer,
           Point:from_1_based(1, 1),
-          Point:from_1_based(2, 8)
+          Point:from_1_based(2, 9) --- we capture the full line "line two\n"
         ),
         range
       )

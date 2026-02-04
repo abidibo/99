@@ -240,6 +240,7 @@ function Range.from_visual_selection()
       vim.api.nvim_buf_get_lines(buffer, start_r, end_row, false)
     end_row = start_r + #selected_lines
     --- another edge case, the buffer may be empty...
+    --- sentry literally caught this one
     if #selected_lines == 0 then
       --- an edge to the edge case. we are in 1 based indexing... f
       end_col = 1
@@ -250,7 +251,9 @@ function Range.from_visual_selection()
     --- in the geo_spec test, this would result in end_row = 2, end_col = 8
     --- so, there is this -1 because we are going to go from 1 based to 0 based
     end_row = end_row - 1
-    end_col = end_col - 1
+
+    --- we need to capture the whole line, therefore its end of line + 1
+    end_col = end_col
   else
     end_col = #end_line[1] + 1
   end
