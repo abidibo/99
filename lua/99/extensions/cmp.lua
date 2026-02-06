@@ -86,8 +86,10 @@ end
 --- @type CmpSource | nil
 local source = nil
 
---- @param _ _99.State
-local function init_for_buffer(_)
+--- @param _99 _99.State
+local function init_for_buffer(_99)
+  -- blink.compat provides a "cmp" module that wraps blink.cmp
+  -- so we always require "cmp" regardless of the source
   local cmp = require("cmp")
   cmp.setup.buffer({
     sources = {
@@ -111,6 +113,8 @@ local function init(_99)
     "the source must be nil when calling init on an completer"
   )
 
+  -- blink.compat provides a "cmp" module that wraps blink.cmp
+  -- so we always require "cmp" regardless of the source
   local cmp = require("cmp")
   source = CmpSource.new(_99)
   cmp.register_source(SOURCE, source)
