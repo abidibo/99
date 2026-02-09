@@ -94,6 +94,7 @@ end
 --- @class _99.Completion
 --- @field source "cmp" | nil
 --- @field custom_rules string[]
+--- @field files _99.Files.Config?
 
 --- @class _99.Options
 --- @field logger _99.Logger.Options?
@@ -353,7 +354,10 @@ end
 
 --- @param opts _99.ops.Opts
 function _99.visual_prompt(opts)
-  print("use visual, visual_prompt has been deprecated")
+  vim.notify(
+    "use visual, visual_prompt has been deprecated",
+    vim.log.levels.WARN
+  )
   _99.visual(opts)
 end
 
@@ -524,6 +528,7 @@ function _99.setup(opts)
     }
   _99_state.completion.custom_rules = _99_state.completion.custom_rules or {}
   _99_state.auto_add_skills = opts.auto_add_skills or false
+  _99_state.completion.files = _99_state.completion.files or {}
 
   local crules = _99_state.completion.custom_rules
   for i, rule in ipairs(crules) do
@@ -561,6 +566,7 @@ function _99.setup(opts)
   _99_state:refresh_rules()
   Languages.initialize(_99_state)
   Extensions.init(_99_state)
+  Extensions.capture_project_root()
 
   if _99_state.show_in_flight_requests then
     show_in_flight_requests()
