@@ -20,7 +20,8 @@ local prompts = {
     return [[
 You are given a prompt and context and you must craft a tutorial.  If a set of
 context has links, read through them thoroughly and decide which ones to retrieve.
-Once you get the content, review it thoroughly before crafting the tutorial
+Once you have fetched all the relavent content, review it thoroughly before
+crafting the tutorial
 
 <Rule>The response format must be valid Markdown</Rule>
 ]]

@@ -52,10 +52,11 @@ local function over_range(context, range, opts)
 
   request:add_prompt_content(prompt)
   context:add_references(refs)
+  context:add_clean_up(clean_up)
 
   top_status:start()
   bottom_status:start()
-  request:start(make_observer(context, clean_up, {
+  request:start(make_observer(clean_up, {
     on_complete = function(status, response)
       if status == "cancelled" then
         logger:debug("request cancelled for visual selection, removing marks")

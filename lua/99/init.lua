@@ -58,19 +58,11 @@ end
 --- @alias _99.RequestEntry.Data _99.RequestEntry.Data.Search | _99.RequestEntry.Data.Tutorial | _99.RequestEntry.Data.Visual
 
 --- @class _99.RequestEntry
---- @field id number
---- @field operation string
+--- @field context _99.RequestContext
 --- @field status _99.Request.State
---- @field filename string
---- @field lnum number
---- @field col number
+--- @field point _99.Point
 --- @field started_at number
 --- @field operation_data _99.RequestEntry.Data | nil
-
---- @class _99.ActiveRequest
---- @field clean_up _99.Cleanup
---- @field request_id number
---- @field name string
 
 --- @class _99.StateProps
 --- @field model string
@@ -171,36 +163,38 @@ function _99_State:refresh_rules()
 end
 
 --- @param context _99.RequestContext
---- @param clean_up fun(): nil
 --- @return _99.RequestEntry
-function _99_State:track_request(context, clean_up)
+function _99_State:track_request(context)
+  assert(
+    context.operation,
+    "must have an operation defined to track the request"
+  )
+
   local point = context.range and context.range.start or Point:from_cursor()
   local entry = {
-    id = context.xid,
-    clean_up = clean_up,
-    operation = context.operation or "request",
-    status = "running",
-    filename = context.full_path,
-    lnum = point.row,
-    col = point.col,
+    context = context,
+    status = "requesting",
+    point = point,
     started_at = time.now(),
     operation_data = nil,
   }
   table.insert(self.__request_history, entry)
-  self.__request_by_id[entry.id] = entry
+  self.__request_by_id[context.xid] = entry
   return entry
 end
 
 --- @param context _99.RequestContext
---- @param status "success" | "failed" | "cancelled"
+--- @param status _99.Request.ResponseState
 function _99_State:finish_request(context, status)
   local id = context.xid
   local entry = self.__request_by_id[id]
-  if entry then
-    entry.status = status
+  if not entry then
+    return
   end
-  if entry.operation == "success" and entry.operation_data then
-    local data = entry.operation_data
+
+  entry.status = status
+  local data = entry.operation_data
+  if entry.status == "success" and data then
     if data.type == "tutorial" then
       table.insert(self.__tutorials, data)
     elseif data.type == "search" then
@@ -218,7 +212,7 @@ function _99_State:add_data(id, data)
   end
   local logger = Logger:set_id(id)
   logger:assert(
-    entry.operation == data.type,
+    entry.context.operation == data.type,
     "the data type is not the same as the operation"
   )
   entry.operation_data = data
@@ -228,7 +222,7 @@ end
 function _99_State:previous_request_count()
   local count = 0
   for _, entry in ipairs(self.__request_history) do
-    if entry.status ~= "running" then
+    if entry.status ~= "requesting" then
       count = count + 1
     end
   end
@@ -238,10 +232,10 @@ end
 function _99_State:clear_previous_requests()
   local keep = {}
   for _, entry in ipairs(self.__request_history) do
-    if entry.status == "running" then
+    if entry.status == "requesting" then
       table.insert(keep, entry)
     else
-      self.__request_by_id[entry.id] = nil
+      self.__request_by_id[entry.context.xid] = nil
     end
   end
   self.__request_history = keep
@@ -257,7 +251,7 @@ end
 function _99_State:active_request_count()
   local count = 0
   for _, r in pairs(self.__request_history) do
-    if r.status == "running" then
+    if r.status == "requesting" then
       count = count + 1
     end
   end
@@ -366,24 +360,14 @@ function _99.search(opts)
 end
 
 --- @param opts _99.ops.Opts
-function _99.visual_prompt(opts)
-  vim.notify(
-    "use visual, visual_prompt has been deprecated",
-    vim.log.levels.WARN
-  )
-  _99.visual(opts)
-end
-
-function _99.fill_in_function()
-  error(
-    "function has been removed. Just use visual. I really hate fill in function, sorry :)"
-  )
-end
-
-function _99.fill_in_function_prompt()
-  error(
-    "function has been removed. Just use visual. I really hate fill in function, sorry :)"
-  )
+function _99.tutorial(opts)
+  opts = process_opts(opts)
+  local context = get_context("tutorial")
+  if opts.additional_prompt then
+    ops.tutorial(context, opts)
+  else
+    capture_prompt(ops.tutorial, "Tutorial", context, opts)
+  end
 end
 
 --- @param opts _99.ops.Opts?
@@ -434,8 +418,33 @@ function _99.next_request_logs()
   Window.display_full_screen_message(logs[_99_state.__view_log_idx])
 end
 
+--- @class _99.QFixEntry
+--- @field filename string
+--- @field lnum number
+--- @field col number
+--- @field text string
+
+--- @param entry _99.RequestEntry
+--- @return _99.QFixEntry
+local function request_entry_to_qfix_item(entry)
+  local context = entry.context
+  local point = entry.point
+  local text = string.format("[%s] %s", entry.status, entry.context.operation)
+
+  return {
+    filename = context and context.full_path or "",
+    lnum = point and point.row or 0,
+    col = point and point.col or 0,
+    text = text,
+  }
+end
+
 function _99.stop_all_requests()
-  error("implement")
+  for _, request in pairs(_99_state.__request_by_id) do
+    if request.status == "requesting" then
+      request.context:stop()
+    end
+  end
 end
 
 function _99.clear_all_marks()
@@ -448,12 +457,7 @@ end
 function _99.previous_requests_to_qfix()
   local items = {}
   for _, entry in ipairs(_99_state.__request_history) do
-    table.insert(items, {
-      filename = entry.filename,
-      lnum = entry.lnum,
-      col = entry.col,
-      text = string.format("[%s] %s", entry.status, entry.operation),
-    })
+    table.insert(items, request_entry_to_qfix_item(entry))
   end
   vim.fn.setqflist({}, "r", { title = "99 Requests", items = items })
   vim.cmd("copen")
@@ -506,9 +510,16 @@ local function show_in_flight_requests()
         return shut_down_in_flight_requests_window()
       end
 
+      --- @type string[]
       local lines = {
         throb .. " requests(" .. tostring(count) .. ") " .. throb,
       }
+
+      for _, r in pairs(_99_state.__request_by_id) do
+        if r.status == "requesting" then
+          table.insert(lines, r.context.operation)
+        end
+      end
 
       Window.resize(win, #lines[1], #lines)
       vim.api.nvim_buf_set_lines(win.buf_id, 0, 1, false, lines)

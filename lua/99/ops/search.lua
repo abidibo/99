@@ -75,10 +75,12 @@ local function search(context, opts)
   local prompt, refs =
     make_prompt(context, context._99.prompts.prompts.semantic_search(), opts)
 
+
   request:add_prompt_content(prompt)
   context:add_references(refs)
+  context:add_clean_up(clean_up)
 
-  request:start(make_observer(context, clean_up, function(status, response)
+  request:start(make_observer(clean_up, function(status, response)
     if status == "cancelled" then
       logger:debug("request cancelled for search")
     elseif status == "failed" then

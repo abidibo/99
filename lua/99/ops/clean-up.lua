@@ -7,27 +7,23 @@ local M = {}
 --- @field on_stderr? fun(line: string): nil
 --- @field on_start? fun(): nil
 
---- @param context _99.RequestContext
 --- @param clean_up fun(): nil
 --- @param obs_or_fn _99.Providers.PartialObserver | _99.Providers.on_complete
 --- @return _99.Providers.Observer
-M.make_observer = function(context, clean_up, obs_or_fn)
+M.make_observer = function(clean_up, obs_or_fn)
   --- @type _99.Providers.PartialObserver
   local obs = type(obs_or_fn) == "table" and obs_or_fn
     or {
       on_complete = obs_or_fn,
     }
-
   return {
     on_start = function()
-      context._99:track_request(context, clean_up)
       if obs.on_start then
         obs.on_start()
       end
     end,
     on_complete = function(status, res)
       vim.schedule(clean_up)
-      context._99:finish_request(context, status)
       obs.on_complete(status, res)
     end,
     on_stderr = function(line)

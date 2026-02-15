@@ -53,6 +53,17 @@ function RequestContext.from_current_buffer(_99, xid)
   }, RequestContext)
 end
 
+function RequestContext:stop()
+  for _, cb in ipairs(self.clean_ups) do
+    cb()
+  end
+end
+
+--- @param clean_up fun(): nil
+function RequestContext:add_clean_up(clean_up)
+  table.insert(self.clean_ups, clean_up)
+end
+
 --- @param md_file_name string
 --- @return self
 function RequestContext:add_md_file_name(md_file_name)

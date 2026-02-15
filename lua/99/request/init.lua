@@ -47,7 +47,7 @@ function Request:_set_process(proc)
 end
 
 function Request:cancel()
-  if self.state == "success" then
+  if self.state == "success" or self.state == "failed" then
     return
   end
 
@@ -80,11 +80,19 @@ end
 --- @param r _99.Request
 --- @param obs _99.Providers.Observer | nil
 local function observer_from_request(r, obs)
+
+    local context = r.context
   return {
-    on_start = obs and obs.on_start or function() end,
+    on_start = function()
+      r.state = "requesting"
+      context._99:track_request(context)
+      if obs then
+        obs.on_start()
+      end
+    end,
     on_complete = function(status, res)
       r.state = status
-      r.context._99:finish_request(r.context, status)
+      context._99:finish_request(context, status)
       if obs then
         obs.on_complete(status, res)
       end
@@ -108,8 +116,6 @@ function Request:start(observer)
     self.state == "ready",
     "request is not in state ready when attempting to start a request"
   )
-  self.state = "requesting"
-
   self.context:finalize()
   for _, content in ipairs(self.context.ai_context) do
     self:add_prompt_content(content)

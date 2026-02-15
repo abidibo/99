@@ -24,8 +24,9 @@ local function tutorial(context, opts)
     make_prompt(context, context._99.prompts.prompts.tutorial(), opts)
   context:add_references(refs)
   request:add_prompt_content(prompt)
+  context:add_clean_up(clean_up)
 
-  request:start(make_observer(context, clean_up, function(status, response)
+  request:start(make_observer(clean_up, function(status, response)
     vim.schedule(clean_up)
     if status == "cancelled" then
       logger:debug("cancelled")
