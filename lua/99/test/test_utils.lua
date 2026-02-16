@@ -1,3 +1,4 @@
+local BaseProvider = require("99.providers").BaseProvider
 local Levels = require("99.logger.level")
 local M = {}
 
@@ -48,6 +49,7 @@ end
 function TestProvider:resolve(status, result)
   assert(self.request, "you cannot call resolve until make_request is called")
   local obs = self.request.observer
+
   if obs then
     --- to match the behavior expected from the OpenCodeProvider
     if self.request.request:is_cancelled() then
@@ -109,7 +111,7 @@ end
 --- @param col number
 --- @param lang string?
 --- @return _99.test.Provider, number
-function M.fif_setup(content, row, col, lang)
+function M.test_setup(content, row, col, lang)
   assert(lang, "lang must be provided")
   local provider = M.TestProvider.new()
   require("99").setup({
